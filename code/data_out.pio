@@ -1,0 +1,35 @@
+;
+; Copyright (c) 2020 Raspberry Pi (Trading) Ltd.
+;
+; SPDX-License-Identifier: BSD-3-Clause
+;
+
+.program data_out
+
+; Repeatedly get one word of data from the TX FIFO, stalling when the FIFO is
+; empty. Write the 8 least significant bit to the OUT pin group.
+
+loop:
+    pull
+    out pins, 8
+    jmp loop
+
+% c-sdk {
+static inline void data_out_program_init(PIO pio, uint sm, uint offset, uint pin) {
+    pio_sm_config c = data_out_program_get_default_config(offset);
+
+    // Map the state machine's OUT pin group to the 8 pins
+    sm_config_set_out_pins(&c, pin, 8);
+    // Set this pin's GPIO function (connect PIO to the pad) for all 8 pins
+    for (uint i = 0; i < 8; i++) {
+        pio_gpio_init(pio, pin + i);
+    }
+    // Set the pin directions to output at the PIO
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 8, true);
+
+    // Load our configuration, and jump to the start of the program
+    pio_sm_init(pio, sm, offset, &c);
+    // Set the state machine running
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}

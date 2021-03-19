@@ -2,8 +2,10 @@
 #include "pico/stdlib.h"
 #include <stdlib.h>
 #include "hardware/gpio.h"
+#include "data_out.pio.h"
 
 #define INPUT_PIN 12
+#define OUT_START_PIN 0
 
 // Define patterns, array of 1-byte integers
 // Since there is only 8 leds, 1 byte is enough for storing all leds status,
@@ -44,18 +46,16 @@ void inter_test(uint gpio, uint32_t events) {
 
 int main() {
     stdio_init_all();
+    // Setup a pio for data output
+    PIO pio = pio0;
+    uint offset = pio_add_program(pio, &data_out_program);
+    uint sm = pio_claim_unused_sm(pio, true);
+    data_out_program_init(pio, sm, offset, OUT_START_PIN);
 
     // Set first pattern
     curStartIndex = 0;
     curPatternIndex = 0;
     curPatternIteration = 0;
-
-    printf("Startup\n");
-    // Initialize leds
-    for ( uint i = 0; i < 8; i++ ) {
-      gpio_init(i);
-      gpio_set_dir(i, GPIO_OUT);
-    }
 
     // Initialize button
     gpio_init(INPUT_PIN);
@@ -70,16 +70,7 @@ int main() {
     // Main loop
     while (true) {
       bin = patterns[curStartIndex + curPatternIteration]; // Integer that in binary represents the led status
-      for (uint led = 0; led < 8; led++) {
-        if (bin % 2) {
-          // Last digit is 1 (binary). Turn on corresponding led
-          gpio_put(led, 1);
-        }
-        else {
-          gpio_put(led, 0);
-        }
-        bin = bin >> 1;
-      }
+      pio_sm_put_blocking(pio, sm, bin);
       curPatternIteration = (curPatternIteration + 1) % patternLengths[curPatternIndex];
       sleep_ms(200);
     }
